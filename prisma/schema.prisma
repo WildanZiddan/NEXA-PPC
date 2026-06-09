@@ -1,0 +1,229 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// 1. MASTER MODELS (Prefix: MST_)
+// ==========================================
+
+// MST_ROL - Daftar peran user dalam sistem
+model MstRol {
+  role_id     String   @id @default(uuid()) @db.Uuid
+  role_name   String   @unique @db.VarChar(50) // e.g., "ADMIN", "SUPPLIER"
+  description String?  @db.Text
+  users       MstUsr[]
+
+  @@map("MST_ROL")
+}
+
+// MST_SUP - Master pemasok bahan baku
+model MstSup {
+  supplier_id    String   @id @default(uuid()) @db.Uuid
+  supplier_name  String   @db.VarChar(100)
+  contact_person String?  @db.VarChar(100)
+  lead_time_days Int      @db.Integer
+  users          MstUsr[]
+  purchaseOrders TrxPur[]
+
+  @@map("MST_SUP")
+}
+
+// MST_USR - Akun login user
+model MstUsr {
+  user_id     String   @id @default(uuid()) @db.Uuid
+  role_id     String   @db.Uuid
+  supplier_id String?  @db.Uuid
+  username    String   @unique @db.VarChar(50)
+  password    String   @db.VarChar(255)
+  full_name   String   @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  role     MstRol  @relation(fields: [role_id], references: [role_id])
+  supplier MstSup? @relation(fields: [supplier_id], references: [supplier_id], onDelete: SetNull)
+
+  @@map("MST_USR")
+}
+
+// MST_ITE - Master item (Finished Good / Component / Raw Material)
+model MstIte {
+  item_id                  String                   @id @default(uuid()) @db.Uuid
+  item_code                String                   @unique @db.VarChar(50)
+  item_name                String                   @db.VarChar(100)
+  item_type                String                   @db.VarChar(50) // "Finished Good", "Component", "Raw Material"
+  unit                     String                   @db.VarChar(20) // e.g., "PCS", "SET", "KG"
+  
+  parentBoms               MstBom[]                 @relation("ParentItem")
+  childBoms                MstBom[]                 @relation("ChildItem")
+  forecasts                TrxFor[]
+  aggregatePlanDetails     TrxAgd[]
+  masterProductionSchedule TrxMps[]
+  materialRequirements     TrxMrp[]
+  purchaseOrderDetails     TrxPod[]
+  workOrders               TrxWoo[]
+  inventoryLedgers         TrxInv[]
+
+  @@map("MST_ITE")
+}
+
+// MST_BOM - Hubungan multi-level Bill of Materials
+model MstBom {
+  bom_id          String @id @default(uuid()) @db.Uuid
+  parent_item_id  String @db.Uuid
+  child_item_id   String @db.Uuid
+  quantity_needed Float  @db.DoublePrecision
+
+  parentItem MstIte @relation("ParentItem", fields: [parent_item_id], references: [item_id], onDelete: Cascade)
+  childItem  MstIte @relation("ChildItem", fields: [child_item_id], references: [item_id], onDelete: Cascade)
+
+  @@map("MST_BOM")
+}
+
+// MST_WOR - Pusat kerja / lini perakitan internal
+model MstWor {
+  work_center_id   String   @id @default(uuid()) @db.Uuid
+  work_center_name String   @db.VarChar(100)
+  capacity_per_day Int      @db.Integer
+  workOrders       TrxWoo[]
+
+  @@map("MST_WOR")
+}
+
+// ==========================================
+// 2. TRANSACTIONAL MODELS (Prefix: TRX_)
+// ==========================================
+
+// TRX_FOR - Peramalan permintaan per item per periode
+model TrxFor {
+  forecast_id       String   @id @default(uuid()) @db.Uuid
+  item_id           String   @db.Uuid
+  period_date       DateTime @db.Date
+  quantity_forecast Float    @db.DoublePrecision
+
+  item MstIte @relation(fields: [item_id], references: [item_id])
+
+  @@map("TRX_FOR")
+}
+
+// TRX_AGG - Header perencanaan agregat bulanan
+model TrxAgg {
+  aggregate_id      String             @id @default(uuid()) @db.Uuid
+  period_date       DateTime           @db.Date
+  total_demand      Float              @db.DoublePrecision
+  production_target Float              @db.DoublePrecision
+  strategy_used     String             @db.VarChar(50) // e.g., "CHASE", "LEVEL", "HYBRID"
+  details           TrxAgd[]
+  mps               TrxMps[]
+
+  @@map("TRX_AGG")
+}
+
+// TRX_AGD - Detail alokasi produksi per item pada aggregate plan
+model TrxAgd {
+  aggregate_detail_id String @id @default(uuid()) @db.Uuid
+  aggregate_id        String @db.Uuid
+  item_id             String @db.Uuid
+  allocated_quantity  Float  @db.DoublePrecision
+
+  aggregatePlan TrxAgg @relation(fields: [aggregate_id], references: [aggregate_id], onDelete: Cascade)
+  item          MstIte @relation(fields: [item_id], references: [item_id])
+
+  @@map("TRX_AGD")
+}
+
+// TRX_MPS - Jadwal induk mingguan turunan dari aggregate plan
+model TrxMps {
+  mps_id            String   @id @default(uuid()) @db.Uuid
+  aggregate_id      String   @db.Uuid
+  item_id           String   @db.Uuid
+  due_date          DateTime @db.Date
+  quantity_demanded Float    @db.DoublePrecision
+
+  aggregatePlan        TrxAgg   @relation(fields: [aggregate_id], references: [aggregate_id])
+  item                 MstIte   @relation(fields: [item_id], references: [item_id])
+  materialRequirements TrxMrp[]
+
+  @@map("TRX_MPS")
+}
+
+// TRX_MRP - Output detail kebutuhan material (BOM & Netting) untuk tiap MPS
+model TrxMrp {
+  mrp_id             String   @id @default(uuid()) @db.Uuid
+  mps_id             String   @db.Uuid
+  item_id            String   @db.Uuid
+  gross_requirement  Float    @db.DoublePrecision
+  net_requirement    Float    @db.DoublePrecision
+  safety_stock       Float    @db.DoublePrecision
+  order_release_date DateTime @db.Date
+  due_date           DateTime @db.Date
+  status             String   @db.VarChar(50) // "PLANNED", "RELEASED", "CLOSED"
+
+  mps  TrxMps @relation(fields: [mps_id], references: [mps_id], onDelete: Cascade)
+  item MstIte @relation(fields: [item_id], references: [item_id])
+
+  @@map("TRX_MRP")
+}
+
+// TRX_PUR - Header Purchase Order ke supplier
+model TrxPur {
+  po_id       String   @id @default(uuid()) @db.Uuid
+  supplier_id String   @db.Uuid
+  po_date     DateTime @db.Date
+  status      String   @db.VarChar(50) // "PENDING", "SHIPPED", "RECEIVED"
+
+  supplier            MstSup   @relation(fields: [supplier_id], references: [supplier_id])
+  purchaseOrderDetails TrxPod[]
+
+  @@map("TRX_PUR")
+}
+
+// TRX_POD - Detail item per Purchase Order
+model TrxPod {
+  po_detail_id     String @id @default(uuid()) @db.Uuid
+  po_id            String @db.Uuid
+  item_id          String @db.Uuid
+  quantity_ordered Float  @db.DoublePrecision
+
+  purchaseOrder TrxPur @relation(fields: [po_id], references: [po_id], onDelete: Cascade)
+  item          MstIte @relation(fields: [item_id], references: [item_id])
+
+  @@map("TRX_POD")
+}
+
+// TRX_WOO - Surat perintah perakitan internal (Work Order)
+model TrxWoo {
+  wo_id               String   @id @default(uuid()) @db.Uuid
+  item_id             String   @db.Uuid
+  work_center_id      String   @db.Uuid
+  quantity_to_produce Float    @db.DoublePrecision
+  start_date          DateTime @db.Date
+  end_date            DateTime @db.Date
+  status              String   @db.VarChar(50) // "PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
+
+  item       MstIte @relation(fields: [item_id], references: [item_id])
+  workCenter MstWor @relation(fields: [work_center_id], references: [work_center_id])
+
+  @@map("TRX_WOO")
+}
+
+// TRX_INV - Kartu stok / ledger semua mutasi inventory
+model TrxInv {
+  ledger_id        String   @id @default(uuid()) @db.Uuid
+  item_id          String   @db.Uuid
+  transaction_type String   @db.VarChar(50) // "IN_PO", "OUT_WO", "ADJUSTMENT"
+  quantity         Float    @db.DoublePrecision
+  current_stock    Float    @db.DoublePrecision
+  created_at       DateTime @default(now())
+
+  item MstIte @relation(fields: [item_id], references: [item_id])
+
+  @@map("TRX_INV")
+}
