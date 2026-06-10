@@ -1,7 +1,7 @@
-const { PrismaClient } = require('d:\\ASTRATech\\Semester 4\\Sistem Produksi\\NEXA-PPC\\frontend\\generated\\prisma');
+const { PrismaClient } = require('../generated/prisma');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
-require('dotenv').config({ path: 'd:\\ASTRATech\\Semester 4\\Sistem Produksi\\NEXA-PPC\\frontend\\.env' });
+require('dotenv').config({ path: '.env' });
 
 const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({ connectionString });
