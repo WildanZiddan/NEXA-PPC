@@ -73,6 +73,24 @@ export async function GET() {
 
     const chartData = Array.from(monthlyDataMap.values()).sort((a, b) => a.month.localeCompare(b.month));
 
+    // Get out-of-stock items (latest ledger current_stock = 0 or no ledger entry)
+    const itemsRaw = await prisma.mstIte.findMany({ orderBy: { item_code: "asc" } });
+    const outOfStockItems = [];
+    for (const item of itemsRaw) {
+      const latestLedger = await prisma.trxInv.findFirst({
+        where: { item_id: item.item_id },
+        orderBy: { created_at: "desc" },
+        select: { current_stock: true }
+      });
+      const stock = latestLedger ? latestLedger.current_stock : 0;
+      if (stock === 0) {
+        outOfStockItems.push({
+          ...item,
+          current_stock: 0
+        });
+      }
+    }
+
     return NextResponse.json({
       stats: {
         usersCount,
@@ -82,7 +100,8 @@ export async function GET() {
       },
       recentWorkOrders,
       recentInventory,
-      chartData
+      chartData,
+      outOfStockItems
     });
   } catch (error: any) {
     console.error("Dashboard Stats API Error:", error);

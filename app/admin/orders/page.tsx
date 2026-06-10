@@ -102,7 +102,23 @@ export default function AdminOrdersPage() {
   }
 
   useEffect(() => {
-    loadAllData();
+    loadAllData().then(() => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      const itemId = params.get("itemId");
+      
+      if (tab === "po" || tab === "wo") {
+        setActiveTab(tab);
+      }
+      
+      if (itemId) {
+        if (tab === "po") {
+          setPoItemId(itemId);
+        } else if (tab === "wo") {
+          setWoItemId(itemId);
+        }
+      }
+    });
   }, []);
 
   const handleCreatePO = async (e: React.FormEvent) => {

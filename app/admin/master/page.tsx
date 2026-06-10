@@ -141,12 +141,20 @@ export default function MasterDataPage() {
                     <th className="pb-3">Tipe Item</th>
                     <th className="pb-3 text-right">Stok Saat Ini</th>
                     <th className="pb-3 text-right">Satuan (Unit)</th>
+                    <th className="pb-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-700/30 text-gray-800 dark:text-slate-250">
                   {items.map((i) => (
-                    <tr key={i.item_id} className="hover:bg-gray-50 dark:hover:bg-slate-800/20 transition-all">
-                      <td className="py-3.5 font-mono text-xs text-blue-600 dark:text-blue-400 font-semibold">{i.item_code}</td>
+                    <tr 
+                      key={i.item_id} 
+                      className={`transition-all ${
+                        i.current_stock === 0 
+                          ? "bg-red-500/5 dark:bg-red-500/5 hover:bg-red-500/10 dark:hover:bg-red-500/10 border-l-4 border-l-red-500" 
+                          : "hover:bg-gray-50 dark:hover:bg-slate-800/20"
+                      }`}
+                    >
+                      <td className="py-3.5 pl-2 font-mono text-xs text-blue-600 dark:text-blue-400 font-semibold">{i.item_code}</td>
                       <td className="py-3.5 font-medium">{i.item_name}</td>
                       <td className="py-3.5">
                         <span className={`inline-block text-2xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
@@ -154,15 +162,40 @@ export default function MasterDataPage() {
                             ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20" 
                             : i.item_type === "Component" 
                             ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" 
-                            : "bg-gray-100 dark:bg-slate-700/20 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-700/30"
+                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                         }`}>
                           {i.item_type}
                         </span>
                       </td>
                       <td className="py-3.5 text-right font-bold text-gray-900 dark:text-white">
-                        {i.current_stock ?? 0}
+                        {i.current_stock === 0 ? (
+                          <span className="inline-block text-2xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/25">
+                            Habis (0)
+                          </span>
+                        ) : (
+                          i.current_stock
+                        )}
                       </td>
                       <td className="py-3.5 text-right font-medium text-gray-500 dark:text-slate-300">{i.unit}</td>
+                      <td className="py-3.5 text-right pr-2">
+                        {i.current_stock === 0 && (
+                          i.item_type === "Raw Material" ? (
+                            <a
+                              href={`/admin/orders?tab=po&itemId=${i.item_id}`}
+                              className="inline-flex items-center justify-center py-1 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-xs cursor-pointer shadow-sm"
+                            >
+                              Beli PO
+                            </a>
+                          ) : (
+                            <a
+                              href={`/admin/orders?tab=wo&itemId=${i.item_id}`}
+                              className="inline-flex items-center justify-center py-1 px-3 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold transition-all text-xs cursor-pointer shadow-sm"
+                            >
+                              Rakit WO
+                            </a>
+                          )
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

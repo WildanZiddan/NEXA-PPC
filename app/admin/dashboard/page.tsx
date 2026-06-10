@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   const [recentWorkOrders, setRecentWorkOrders] = useState<any[]>([]);
   const [recentInventory, setRecentInventory] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [outOfStockItems, setOutOfStockItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -53,6 +54,7 @@ export default function AdminDashboard() {
         setRecentWorkOrders(data.recentWorkOrders);
         setRecentInventory(data.recentInventory);
         setChartData(data.chartData || []);
+        setOutOfStockItems(data.outOfStockItems || []);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -102,6 +104,59 @@ export default function AdminDashboard() {
           <span>Terakhir diperbarui: Baru saja</span>
         </div>
       </div>
+
+      {/* Out of Stock Warning Widget */}
+      {outOfStockItems.length > 0 && (
+        <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200 dark:border-red-500/20 rounded-3xl p-6 shadow-sm space-y-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-md font-bold text-gray-900 dark:text-white">Peringatan: Persediaan Habis (Stok = 0)</h2>
+              <p className="text-xs text-gray-550 dark:text-slate-400">Terdapat {outOfStockItems.length} item dengan saldo stok nol. Silakan rilis pesanan atau perakitan baru.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {outOfStockItems.map((item) => (
+              <div key={item.item_id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800/40 border border-gray-100 dark:border-slate-700/50 rounded-2xl shadow-sm transition-all hover:border-gray-200 dark:hover:border-slate-600">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-red-600 dark:text-red-400 font-bold">{item.item_code}</span>
+                    <span className={`inline-block text-3xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      item.item_type === "Finished Good" 
+                        ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20" 
+                        : item.item_type === "Component" 
+                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" 
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                    }`}>
+                      {item.item_type}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">{item.item_name}</p>
+                </div>
+                <div>
+                  {item.item_type === "Raw Material" ? (
+                    <a
+                      href={`/admin/orders?tab=po&itemId=${item.item_id}`}
+                      className="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20 rounded-xl transition-all shadow-2xs"
+                    >
+                      Beli (PO)
+                    </a>
+                  ) : (
+                    <a
+                      href={`/admin/orders?tab=wo&itemId=${item.item_id}`}
+                      className="px-3 py-1.5 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border border-amber-100 dark:border-amber-500/20 rounded-xl transition-all shadow-2xs"
+                    >
+                      Rakit (WO)
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
